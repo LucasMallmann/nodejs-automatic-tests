@@ -1,18 +1,26 @@
-const { User } = require("../../src/app/models");
-const app = require("../../src/app");
 const request = require("supertest");
-
+const nodemailer = require("nodemailer");
+const factory = require("../factories");
+const app = require("../../src/app");
 const truncate = require("../utils/truncate");
+
+jest.mock("nodemailer");
+
+const transporter = {
+  sendMail: jest.fn()
+};
 
 describe("Authentication", () => {
   beforeEach(async () => {
     await truncate();
   });
 
+  beforeAll(() => {
+    nodemailer.createTestAccount.mockReturnValue(transporter);
+  });
+
   it("should be able to authenticate with valid credentials", async () => {
-    const user = await User.create({
-      name: "john",
-      email: "john@email.com",
+    const user = await factory.create("User", {
       password: "123123"
     });
 
@@ -27,9 +35,7 @@ describe("Authentication", () => {
   });
 
   it("should not be able to authenticate with invalid credentials", async () => {
-    const user = await User.create({
-      name: "john",
-      email: "john@email.com",
+    const user = await factory.create("User", {
       password: "123123"
     });
 
@@ -44,9 +50,7 @@ describe("Authentication", () => {
   });
 
   it("should return jwt token when authenticated", async () => {
-    const user = await User.create({
-      name: "john",
-      email: "john@email.com",
+    const user = await factory.create("User", {
       password: "123123"
     });
 
@@ -61,11 +65,7 @@ describe("Authentication", () => {
   });
 
   it("should be able to access private routes when authenticated", async () => {
-    const user = await User.create({
-      name: "john",
-      email: "john@email.com",
-      password: "123123"
-    });
+    const user = await factory.create("User");
 
     const token = await user.generateToken();
 
@@ -84,8 +84,23 @@ describe("Authentication", () => {
   it("should not be able to access private routes when token is invalid", async () => {
     const response = await request(app)
       .get("/dashboard")
-      .set("Authorization", "Beader 123213");
+      .set("Authorization", "Bearer 123213");
 
     expect(response.status).toBe(401);
+  });
+
+  it("should receive email notification when authenticated", async () => {
+    const user = await factory.create("User", {
+      password: "123123"
+    });
+
+    const response = await request(app)
+      .post("/sessions")
+      .send({
+        email: user.email,
+        password: "123123"
+      });
+
+    expect(transporter.sendMail).toHaveBeenCalledTimes(1);
   });
 });
