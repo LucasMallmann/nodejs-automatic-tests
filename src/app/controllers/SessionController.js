@@ -14,7 +14,9 @@ class SessionController {
       return res.status(401).json({ message: "Invalid password" });
     }
 
-    return res.status(200).send();
+    const token = await user.generateToken();
+
+    return res.status(200).json({ token });
   }
 }
 
